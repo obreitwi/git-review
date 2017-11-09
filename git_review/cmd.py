@@ -60,6 +60,8 @@ DEFAULTS = dict(scheme='ssh', hostname=False, port=None, project=False,
                 branch='master', remote="gerrit", rebase="1",
                 track="0", usepushurl="0")
 
+GITVERSION = None
+
 _branch_name = None
 _has_color = None
 _use_color = None
@@ -225,6 +227,13 @@ def get_version():
     requirement = pkg_resources.Requirement.parse('git-review')
     provider = pkg_resources.get_provider(requirement)
     return provider.version
+
+
+def get_git_version():
+    "Return tuple containing current git version"
+    git_version_string = run_command("git --version")
+    git_version = pkg_resources.parse_version(git_version_string.split(" ")[-1])
+    return git_version
 
 
 def git_directories():
@@ -1228,8 +1237,15 @@ def checkout_review(branch_name, remote, remote_branch):
                         "git", "checkout", "-b",
                         branch_name, "FETCH_HEAD")
         # --set-upstream-to is not supported in git 1.7
+        # if GITVERSION is None (uninitialised) this defaults to the old
+        # behavior (pre 1.8.0)
+        if GITVERSION >= pkg_resources.parse_version("1.8.0"):
+            set_upstream_cmd = "--set-upstream-to"
+        else:
+            set_upstream_cmd = "--set-upstream"
+
         run_command_exc(SetUpstreamBranchFailed,
-                        "git", "branch", "--set-upstream",
+                        "git", "branch", set_upstream_cmd,
                         branch_name,
                         '%s/%s' % (remote, remote_branch))
 
@@ -1521,6 +1537,9 @@ def _main():
         # explicitly-specified branch on command line overrides options.track
         branch = options.branch
         options.track = False
+
+    global GITVERSION
+    GITVERSION = get_git_version()
 
     global VERBOSE
     global UPDATE
